@@ -1,0 +1,59 @@
+[
+  {
+    "id": "first-contact",
+    "level": 1,
+    "title": "FIRST CONTACT",
+    "briefing": "Zainfekuj modul BROWSER i nie przekrocz limitu wykrycia.",
+    "objectives": [{"node": "browser", "infection": 100}],
+    "detection_limit": 80,
+    "time_limit": 0
+  },
+  {
+    "id": "quiet-expansion",
+    "level": 2,
+    "title": "QUIET EXPANSION",
+    "briefing": "Przejmij BROWSER i MAIL zanim antywirus podniesie alarm.",
+    "objectives": [
+      {"node": "browser", "infection": 100},
+      {"node": "mail", "infection": 100}
+    ],
+    "detection_limit": 78,
+    "time_limit": 0
+  },
+  {
+    "id": "data-heist",
+    "level": 3,
+    "title": "DATA HEIST",
+    "briefing": "Otworz sciezke przez BROWSER, MAIL i FILES.",
+    "objectives": [
+      {"node": "browser", "infection": 100},
+      {"node": "mail", "infection": 100},
+      {"node": "files", "infection": 100}
+    ],
+    "detection_limit": 74,
+    "time_limit": 0
+  },
+  {
+    "id": "red-alert",
+    "level": 4,
+    "title": "RED ALERT",
+    "briefing": "Zainfekuj SECURITY i utrzymaj wykrycie ponizej 68 procent.",
+    "objectives": [{"node": "security", "infection": 100}],
+    "detection_limit": 68,
+    "time_limit": 0
+  },
+  {
+    "id": "system-control",
+    "level": 5,
+    "title": "SYSTEM CONTROL",
+    "briefing": "Przejmij wszystkie moduly uzytkownika. To dopiero poczatek.",
+    "objectives": [
+      {"node": "browser", "infection": 100},
+      {"node": "mail", "infection": 100},
+      {"node": "files", "infection": 100},
+      {"node": "security", "infection": 100}
+    ],
+    "detection_limit": 92,
+    "time_limit": 0
+  }
+]

@@ -6,14 +6,17 @@ build-backend = "setuptools.build_meta"
 name = "virus-exe"
 version = "0.1.0"
 description = "Virus.exe cyberpunk strategy puzzle"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
-    "pygame>=2.5,<3",
+    "pygame-ce>=2.5.6,<3",
     "matplotlib>=3.8,<4",
     "fastapi>=0.110,<1",
     "uvicorn[standard]>=0.29,<1",
     "pydantic>=2.6,<3",
 ]
+
+[tool.setuptools.packages.find]
+include = ["virus_exe*"]
 
 [project.scripts]
 virus-exe = "virus_exe.main:run"

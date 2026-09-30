@@ -1,0 +1,3 @@
+[console_scripts]
+virus-exe = virus_exe.main:run
+virus-exe-api = virus_exe.api:run_api

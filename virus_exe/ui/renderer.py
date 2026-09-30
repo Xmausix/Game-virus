@@ -44,12 +44,12 @@ class Renderer:
             pygame.draw.rect(surface, color, filled)
         pygame.draw.rect(surface, theme.BORDER, rect, width=1)
 
-    def render(self, surface: pygame.Surface, state: GameState, buttons: list[Button]) -> None:
+    def render(self, surface: pygame.Surface, state: GameState, buttons: list[Button], console_input: str = "", console_active: bool = False) -> None:
         surface.fill(theme.BG)
         self._header(surface, state)
         self._map(surface, state)
         self._sidebar(surface, state)
-        self._footer(surface, state, buttons)
+        self._footer(surface, state, buttons, console_input, console_active)
         self._crt_overlay(surface, state)
 
     def _header(self, surface: pygame.Surface, state: GameState) -> None:
@@ -58,6 +58,7 @@ class Renderer:
         pygame.draw.line(surface, theme.BORDER, (0, 67), (width, 67), 1)
         self.text(surface, "VIRUS.EXE", (24, 12), "title", theme.GREEN)
         self.text(surface, f"SYS://{state.graph.name}   LEVEL {state.level_index:02d}/{state.total_levels:02d}", (24, 45), "tiny", theme.MUTED)
+        self.text(surface, f"VIRUS {state.virus_profile.code_name} // METHOD {state.attack_method.label}", (465, 45), "tiny", theme.GREEN_DARK)
         current_time = datetime.now().strftime("%H:%M:%S")
         status_color = theme.GREEN if state.is_playing else theme.YELLOW if state.status == "WON" else theme.RED
         self.text(surface, f"STATUS: {state.security.warning_level}", (850, 14), "small", status_color)
@@ -146,32 +147,36 @@ class Renderer:
         event_y = current_y + 49
         self.text(surface, "EVENT STREAM", (rect.x + 16, event_y), "tiny", theme.MUTED)
         y = event_y + 18
-        for message in state.messages[-4:]:
-            color = theme.GREEN if "COMPLETE" in message else theme.GREEN_DARK
-            self.text(surface, message[-39:], (rect.x + 16, y), "tiny", color)
+        for line in state.console_lines[-4:]:
+            color = theme.GREEN if "SUCCESS" in line or "COMPLETE" in line else theme.GREEN_DARK
+            self.text(surface, line[-39:], (rect.x + 16, y), "tiny", color)
             y += 13
 
     def _resource(self, surface: pygame.Surface, x: int, y: int, label: str, value: float, color: str) -> None:
         self.text(surface, f"{label:<7} {value:05.1f}%", (x, y), "tiny", theme.TEXT)
         self.bar(surface, pygame.Rect(x + 95, y + 2, 275, 7), value, color)
 
-    def _footer(self, surface: pygame.Surface, state: GameState, buttons: list[Button]) -> None:
+    def _footer(self, surface: pygame.Surface, state: GameState, buttons: list[Button], console_input: str, console_active: bool) -> None:
         width = surface.get_width()
         pygame.draw.rect(surface, theme.PANEL, pygame.Rect(0, 600, width, 160))
         pygame.draw.line(surface, theme.BORDER, (0, 600), (width, 600), 1)
         self.text(surface, "OPERATIONS", (24, 616), "tiny", theme.MUTED)
-        self.text(surface, "CRT ONLINE // 60HZ", (1045, 616), "tiny", theme.MUTED)
+        console_status = "CONSOLE ACTIVE" if console_active else "CONSOLE STANDBY"
+        self.text(surface, f"{console_status} // TAB TO TOGGLE", (760, 616), "tiny", theme.YELLOW if console_active else theme.MUTED)
+        self.text(surface, "CRT ONLINE // 60HZ", (1090, 616), "tiny", theme.MUTED)
         for button in buttons:
             button.draw(surface, self.fonts["small"])
         if state.virus.infection_job:
             job = state.virus.infection_job
-            self.text(surface, f"INFECTION PROCESS  {state.current_node.name}", (24, 728), "tiny", theme.YELLOW)
+            self.text(surface, f"ATTACK PROCESS  {state.graph.get_node(job.node_id).name}", (24, 728), "tiny", theme.YELLOW)
             self.bar(surface, pygame.Rect(230, 731, 320, 8), job.progress, theme.YELLOW)
         elif state.virus.is_hidden(state.elapsed):
             self.text(surface, "STEALTH CLOAK ACTIVE", (24, 728), "tiny", theme.CYAN)
         else:
             self.text(surface, "READY FOR INPUT", (24, 728), "tiny", theme.MUTED)
-        self.text(surface, "S SCAN   I INFECT   H HIDE   M MOVE", (760, 728), "tiny", theme.MUTED)
+        prompt_color = theme.GREEN if console_active else theme.MUTED
+        cursor = "_" if console_active and pygame.time.get_ticks() % 1000 < 650 else " "
+        self.text(surface, f"root@virus-exe:~# {console_input}{cursor}", (760, 728), "tiny", prompt_color)
 
     def render_end_screen(self, surface: pygame.Surface, state: GameState, chart: pygame.Surface | None, next_available: bool = False) -> None:
         overlay = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
@@ -225,6 +230,75 @@ class Renderer:
             pygame.draw.rect(overlay, (30, 255, 90, 22), pygame.Rect(18, glitch_y + 3, width - 36, 2))
         pygame.draw.rect(overlay, (45, 255, 75, 70), pygame.Rect(5, 5, width - 10, height - 10), 1)
         surface.blit(overlay, (0, 0))
+
+    def render_editor(self, surface: pygame.Surface, editor) -> None:
+        surface.fill(theme.BG)
+        width, height = surface.get_size()
+        self.text(surface, "VIRUS.EXE // CUSTOM VIRUS EDITOR", (24, 14), "title", theme.GREEN)
+        self.text(surface, "SAFE DSL SANDBOX // NO PYTHON // NO NETWORK // BOOLEAN TESTS", (630, 22), "tiny", theme.MUTED)
+        code_rect = pygame.Rect(20, 58, 760, 650)
+        guide_rect = pygame.Rect(800, 58, 460, 650)
+        self.panel(surface, code_rect, "SOURCE")
+        self.panel(surface, guide_rect, "GUIDE / TEST OUTPUT")
+        line_height = 22
+        visible_lines = 26
+        for visible_index in range(visible_lines):
+            line_index = editor.scroll + visible_index
+            if line_index >= len(editor.lines):
+                break
+            y = code_rect.y + 46 + visible_index * line_height
+            if line_index == editor.row:
+                pygame.draw.rect(surface, "#0b2b10", pygame.Rect(code_rect.x + 8, y - 2, code_rect.width - 16, line_height))
+            self.text(surface, f"{line_index + 1:02d}", (code_rect.x + 16, y), "tiny", theme.MUTED)
+            self.text(surface, editor.lines[line_index], (code_rect.x + 56, y), "small", theme.TEXT)
+            if line_index == editor.row and pygame.time.get_ticks() % 1000 < 650:
+                prefix = editor.lines[line_index][: editor.column]
+                cursor_x = code_rect.x + 56 + self.fonts["small"].size(prefix)[0]
+                pygame.draw.rect(surface, theme.GREEN, pygame.Rect(cursor_x, y, 7, 13))
+        guide_x = guide_rect.x + 18
+        guide_y = guide_rect.y + 46
+        guide_lines = [
+            "MINIMALNY PROGRAM:",
+            "VIRUS NAME",
+            "POWER 0..100",
+            "STEALTH 0..100",
+            "SPREAD 0..100",
+            "PERSISTENCE 0..100",
+            "METHOD EXPLOIT|PHISH|LATERAL",
+            "       PERSIST|SPOOF",
+            "RULE SIGNAL OP VALUE THEN ACTION",
+            "SIGNAL: DETECTION SECURITY CPU",
+            "        NETWORK INFECTION",
+            "ACTION: HIDE MOVE WAIT",
+            "        ATTACK METHOD",
+            "END",
+            "",
+            "PRZYKLAD:",
+            "RULE DETECTION > 60 THEN HIDE",
+            "RULE SECURITY < 70 THEN ATTACK SPOOF",
+            "",
+            "F5  TEST",
+            "F6  APPLY IF TEST TRUE",
+            "CTRL+S SAVE",
+            "ESC  EXIT",
+        ]
+        for line in guide_lines:
+            self.text(surface, line, (guide_x, guide_y), "tiny", theme.GREEN_DARK if line.startswith("RULE") else theme.MUTED)
+            guide_y += 18
+        result_y = guide_rect.y + 470
+        self.text(surface, editor.message, (guide_x, result_y), "small", theme.YELLOW)
+        if editor.result is not None:
+            result_color = theme.GREEN if editor.result.passed else theme.RED
+            self.text(surface, f"TEST RESULT: {'TRUE' if editor.result.passed else 'FALSE'}", (guide_x, result_y + 24), "heading", result_color)
+            offset = 50
+            for passed, label in editor.result.checks:
+                self.text(surface, f"[{'TRUE' if passed else 'FALSE'}] {label}", (guide_x, result_y + offset), "tiny", theme.GREEN if passed else theme.RED)
+                offset += 16
+            for error in editor.result.errors:
+                self.text(surface, error[:48], (guide_x, result_y + offset), "tiny", theme.RED)
+                offset += 16
+        self.text(surface, "EDITOR PAUSED GAME CLOCK", (24, 730), "tiny", theme.YELLOW)
+        self._crt_overlay(surface, None, intense=True)
 
     def _detection_color(self, value: float) -> str:
         if value < 50:

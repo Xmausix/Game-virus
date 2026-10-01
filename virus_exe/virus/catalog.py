@@ -27,22 +27,25 @@ class AttackMethod:
     remote: bool
     category: str | None = None
     required_virus: str | None = None
+    cooldown: float = 4.0
+    intel_cost: float = 0.0
+    requires_analysis: bool = False
 
 
 VIRUS_PROFILES: tuple[VirusProfile, ...] = (
     VirusProfile("ghost", "GHOST", "cichy implant zwiadowczy", 0.48, 0.90, 0.30, 0.18, 0.62),
     VirusProfile("worm", "WORM", "autonomiczny propagator sieciowy", 0.62, 0.42, 0.96, 0.30, 1.00),
     VirusProfile("rootkit", "ROOTKIT", "gleboki kontroler systemowy", 0.86, 0.58, 0.42, 1.00, 0.84),
-    VirusProfile("locker", "LOCKER", "agresywny modol blokujacy", 1.00, 0.18, 0.25, 0.70, 1.40),
+    VirusProfile("locker", "LOCKER", "agresywny modul blokujacy", 1.00, 0.18, 0.25, 0.70, 1.40),
 )
 
 
 ATTACK_METHODS: tuple[AttackMethod, ...] = (
-    AttackMethod("exploit", "EXPLOIT", "wykorzystuje abstrakcyjna luke modulu", 0.82, 42.0, 3.8, 10.0, 9.0, 3.0, False),
-    AttackMethod("phish", "PHISH", "przejmuje modul aktywnosci uzytkownika", 0.78, 32.0, 4.5, 6.0, 6.0, 6.0, False, "user"),
-    AttackMethod("lateral", "LATERAL", "przeskakuje przez aktywne polaczenie", 0.70, 30.0, 3.8, 12.0, 7.0, 12.0, True),
-    AttackMethod("persist", "PERSIST", "instaluje fikcyjny wpis startowy", 0.64, 24.0, 5.0, 9.0, 10.0, 5.0, False, None, "rootkit"),
-    AttackMethod("spoof", "SPOOF", "maskuje proces i obniza slad detekcji", 0.88, 18.0, 4.2, -6.0, 4.0, 2.0, False),
+    AttackMethod("exploit", "EXPLOIT", "abstrakcyjna luka modulu", 0.82, 42.0, 3.8, 10.0, 9.0, 3.0, False, None, None, 5.0, 2.0, True),
+    AttackMethod("phish", "PHISH", "modul aktywnosci uzytkownika", 0.78, 32.0, 4.5, 6.0, 6.0, 6.0, False, "user", None, 4.0, 1.0, True),
+    AttackMethod("lateral", "LATERAL", "skok przez aktywne polaczenie", 0.70, 30.0, 3.8, 12.0, 7.0, 12.0, True, None, None, 6.0, 2.0, False),
+    AttackMethod("persist", "PERSIST", "fikcyjny wpis startowy", 0.64, 24.0, 5.0, 9.0, 10.0, 5.0, False, None, "rootkit", 8.0, 3.0, True),
+    AttackMethod("spoof", "SPOOF", "maskowanie procesu", 0.88, 18.0, 4.2, -6.0, 4.0, 2.0, False, None, None, 3.0, 0.0, False),
 )
 
 

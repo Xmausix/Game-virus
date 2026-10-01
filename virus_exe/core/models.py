@@ -11,9 +11,13 @@ class Node:
     security: int
     value: int
     category: str
+    vulnerability: int = 50
+    processes: tuple[str, ...] = ()
+    user_activity: int = 0
     infection: float = 0.0
     detection: float = 0.0
     discovered: bool = False
+    analyzed: bool = False
     isolated: bool = False
 
     def add_infection(self, amount: float) -> None:

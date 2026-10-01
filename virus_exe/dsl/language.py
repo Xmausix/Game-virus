@@ -2,13 +2,13 @@ import re
 from dataclasses import dataclass
 from operator import eq, ge, gt, le, lt
 
-from virus_exe.virus.catalog import method_by_id
-from virus_exe.virus.catalog import VirusProfile
+from virus_exe.virus.catalog import AttackMethod, VirusProfile, method_by_id
 
 
 OPERATORS = {">": gt, ">=": ge, "<": lt, "<=": le, "==": eq}
 SIGNALS = {"DETECTION", "SECURITY", "CPU", "NETWORK", "INFECTION"}
 ACTIONS = {"HIDE", "ATTACK", "MOVE", "WAIT"}
+TOOL_TYPES = {"EXPLOIT", "BACKDOOR", "PAYLOAD", "WORM"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +25,37 @@ class DslRule:
 
 
 @dataclass(frozen=True, slots=True)
+class CustomTool:
+    tool_id: str
+    tool_type: str
+    power: float
+    noise: float
+    cost: float
+    remote: bool
+
+    @property
+    def method_id(self) -> str:
+        return f"custom:{self.tool_id.lower()}"
+
+    def attack_method(self) -> AttackMethod:
+        return AttackMethod(
+            method_id=self.method_id,
+            label=self.tool_id,
+            description=f"fikcyjny modul typu {self.tool_type}",
+            base_success=min(0.94, 0.52 + self.power / 250.0),
+            infection_gain=12.0 + self.power * 0.42,
+            duration=max(2.8, 6.4 - self.power / 28.0),
+            noise=self.noise,
+            cpu_cost=max(1.0, self.cost),
+            network_cost=3.0 if self.remote else 1.0,
+            remote=self.remote,
+            cooldown=4.0 + self.cost * 0.3,
+            intel_cost=1.0 if self.remote else 0.0,
+            requires_analysis=True,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class CustomVirusProgram:
     name: str
     power: float
@@ -33,6 +64,7 @@ class CustomVirusProgram:
     persistence: float
     default_method: str
     rules: tuple[DslRule, ...]
+    tools: tuple[CustomTool, ...]
     source: str
 
     @property
@@ -63,6 +95,10 @@ _RULE_PATTERN = re.compile(
     r"^RULE\s+(DETECTION|SECURITY|CPU|NETWORK|INFECTION)\s*(>=|<=|==|>|<)\s*(\d+(?:\.\d+)?)\s+THEN\s+(HIDE|ATTACK|MOVE|WAIT)(?:\s+([A-Z][A-Z0-9_-]*))?$",
     re.IGNORECASE,
 )
+_TOOL_PATTERN = re.compile(
+    r"^TOOL\s+([A-Z][A-Z0-9_-]{1,15})\s+TYPE\s+(EXPLOIT|BACKDOOR|PAYLOAD|WORM)\s+POWER\s+(\d+(?:\.\d+)?)\s+NOISE\s+(\d+(?:\.\d+)?)\s+COST\s+(\d+(?:\.\d+)?)\s+RANGE\s+(LOCAL|REMOTE)$",
+    re.IGNORECASE,
+)
 
 
 def compile_program(source: str) -> tuple[CustomVirusProgram | None, tuple[str, ...]]:
@@ -72,8 +108,10 @@ def compile_program(source: str) -> tuple[CustomVirusProgram | None, tuple[str, 
     values: dict[str, float] = {}
     method = "exploit"
     rules: list[DslRule] = []
+    tools: list[CustomTool] = []
     ended = False
     seen_fields: set[str] = set()
+    seen_tools: set[str] = set()
 
     for line_number, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
@@ -99,29 +137,40 @@ def compile_program(source: str) -> tuple[CustomVirusProgram | None, tuple[str, 
                 errors.append(f"LINE {line_number}: {field} MUST BE BETWEEN 0 AND 100")
             values[field] = value
             continue
+        tool_match = _TOOL_PATTERN.fullmatch(line)
+        if tool_match:
+            tool_id = tool_match.group(1).upper()
+            if tool_id in seen_tools:
+                errors.append(f"LINE {line_number}: DUPLICATE TOOL {tool_id}")
+            seen_tools.add(tool_id)
+            tool_type = tool_match.group(2).upper()
+            power = float(tool_match.group(3))
+            noise = float(tool_match.group(4))
+            cost = float(tool_match.group(5))
+            remote = tool_match.group(6).upper() == "REMOTE"
+            if not 0.0 <= power <= 100.0:
+                errors.append(f"LINE {line_number}: TOOL POWER MUST BE BETWEEN 0 AND 100")
+            if not 0.0 <= noise <= 100.0:
+                errors.append(f"LINE {line_number}: TOOL NOISE MUST BE BETWEEN 0 AND 100")
+            if not 1.0 <= cost <= 20.0:
+                errors.append(f"LINE {line_number}: TOOL COST MUST BE BETWEEN 1 AND 20")
+            tools.append(CustomTool(tool_id, tool_type, power, noise, cost, remote))
+            continue
         method_match = re.fullmatch(r"METHOD\s+([A-Z][A-Z0-9_-]*)", line, re.IGNORECASE)
         if method_match:
             method = method_match.group(1).lower()
-            if method_by_id(method) is None:
-                errors.append(f"LINE {line_number}: UNKNOWN METHOD {method.upper()}")
             continue
         rule_match = _RULE_PATTERN.fullmatch(line)
         if rule_match:
             action = rule_match.group(4).upper()
             argument = rule_match.group(5).lower() if rule_match.group(5) else None
-            if action == "ATTACK" and (argument is None or method_by_id(argument) is None):
-                errors.append(f"LINE {line_number}: ATTACK NEEDS A VALID METHOD")
+            if action == "ATTACK" and argument is None:
+                errors.append(f"LINE {line_number}: ATTACK NEEDS A METHOD")
+            if action == "ATTACK" and argument and method_by_id(argument) is None and argument.upper() not in seen_tools:
+                errors.append(f"LINE {line_number}: UNKNOWN ATTACK METHOD {argument.upper()}")
             if action != "ATTACK" and argument is not None:
                 errors.append(f"LINE {line_number}: ONLY ATTACK ACCEPTS AN ARGUMENT")
-            rules.append(
-                DslRule(
-                    signal=rule_match.group(1).upper(),
-                    operator=rule_match.group(2),
-                    threshold=float(rule_match.group(3)),
-                    action=action,
-                    argument=argument,
-                )
-            )
+            rules.append(DslRule(rule_match.group(1).upper(), rule_match.group(2), float(rule_match.group(3)), action, argument))
             continue
         errors.append(f"LINE {line_number}: UNKNOWN INSTRUCTION")
 
@@ -134,19 +183,15 @@ def compile_program(source: str) -> tuple[CustomVirusProgram | None, tuple[str, 
             errors.append(f"MISSING FIELD {field}")
     if not rules:
         errors.append("AT LEAST ONE RULE IS REQUIRED")
+    tool_ids = {tool.tool_id.lower() for tool in tools}
+    if method not in tool_ids and method_by_id(method) is None:
+        errors.append(f"UNKNOWN DEFAULT METHOD {method.upper()}")
+    if len(tools) > 4:
+        errors.append("MAXIMUM 4 TOOLS ALLOWED")
 
     if errors or name is None:
         return None, tuple(errors)
-    program = CustomVirusProgram(
-        name=name,
-        power=values["POWER"],
-        stealth=values["STEALTH"],
-        spread=values["SPREAD"],
-        persistence=values["PERSISTENCE"],
-        default_method=method,
-        rules=tuple(rules),
-        source=source,
-    )
+    program = CustomVirusProgram(name, values["POWER"], values["STEALTH"], values["SPREAD"], values["PERSISTENCE"], method, tuple(rules), tuple(tools), source)
     return program, ()
 
 
@@ -159,7 +204,9 @@ def test_program(source: str) -> DslTestResult:
     checks.append((0.0 <= program.stealth <= 100.0, "STEALTH RANGE"))
     checks.append((0.0 <= program.spread <= 100.0, "SPREAD RANGE"))
     checks.append((0.0 <= program.persistence <= 100.0, "PERSISTENCE RANGE"))
-    checks.append((method_by_id(program.default_method) is not None, "DEFAULT METHOD EXISTS"))
+    checks.append((len(program.tools) > 0, "FICTIONAL TOOL EXISTS"))
+    checks.append((len(program.tools) <= 4, "TOOL COUNT <= 4"))
+    checks.append((method_by_id(program.default_method) is not None or program.default_method in {tool.tool_id.lower() for tool in program.tools}, "DEFAULT METHOD EXISTS"))
     checks.append((len(program.rules) <= 8, "RULE COUNT <= 8"))
     test_values = {"DETECTION": 75.0, "SECURITY": 45.0, "CPU": 35.0, "NETWORK": 65.0, "INFECTION": 20.0}
     triggered = sum(1 for rule in program.rules if rule.matches(test_values))
@@ -176,9 +223,11 @@ def default_source() -> str:
             "STEALTH 86",
             "SPREAD 48",
             "PERSISTENCE 22",
-            "METHOD SPOOF",
+            "TOOL GHOSTLINK TYPE BACKDOOR POWER 58 NOISE 7 COST 2 RANGE REMOTE",
+            "TOOL PACKET_RIFT TYPE EXPLOIT POWER 72 NOISE 15 COST 4 RANGE LOCAL",
+            "METHOD GHOSTLINK",
             "RULE DETECTION > 60 THEN HIDE",
-            "RULE SECURITY < 70 THEN ATTACK SPOOF",
+            "RULE SECURITY < 70 THEN ATTACK GHOSTLINK",
             "END",
         ]
     )

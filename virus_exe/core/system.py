@@ -16,6 +16,9 @@ def load_system(path: Path) -> SystemGraph:
             security=item["security"],
             value=item["value"],
             category=item["category"],
+            vulnerability=item.get("vulnerability", max(5, 100 - item["security"])),
+            processes=tuple(item.get("processes", [])),
+            user_activity=item.get("user_activity", 0),
         )
         for item in payload["nodes"]
     }

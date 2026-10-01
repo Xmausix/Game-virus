@@ -31,6 +31,7 @@ class VirusState:
     hide_uses: int = 0
     persistence: bool = False
     custom_profile: object | None = None
+    custom_methods: dict[str, object] = field(default_factory=dict)
     custom_rules: tuple[object, ...] = ()
     automation: bool = False
     rule_cooldowns: dict[int, float] = field(default_factory=dict)
